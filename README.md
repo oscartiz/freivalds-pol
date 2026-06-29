@@ -51,6 +51,7 @@ src/freivalds_pol/
   trainer.py       multi-round DeMo training loop + budget-constrained adversaries
   curvature.py     Hessian-vector products + power iteration (flat/steep loss directions)
   model.py         multi-layer/multi-head transformer + AdamW (for scaling §8/§9)
+  collusion.py     free-riding / update-copying detection + identity binding
   commitments.py   SHA-256 Merkle tree over transcript leaves
   transcript.py    StepTranscript / MatMulRecord (carries claimed dtype) + commitment
   challenge.py     random challenge sampling + Fiat-Shamir (commitment-derived) probes
@@ -67,6 +68,7 @@ experiments/
   backdoor.py      targeted backdoor: can a cheat evade per-step AND loss detection at once?
   backdoor_capacity.py  does over-parameterization open a stealthy backdoor? (yes)
   scale.py         re-run §8/§9 on a deep model + AdamW (do the findings survive?)
+  grinding.py      expected work to grind an evading Fiat-Shamir probe vs cheat size
   figures.py       regenerate every figure in figures/
 tests/             10 pytest files (55 tests) across every module
 docs/DESIGN.md     12-section design document; REPORT.md     research writeup with figures
@@ -96,6 +98,7 @@ python -m experiments.curvature_attack   # worst case: bias along the flattest l
 python -m experiments.backdoor           # targeted backdoor: stealth-vs-harm tradeoff
 python -m experiments.backdoor_capacity  # over-parameterization widens the stealth window
 python -m experiments.scale              # deep model + AdamW: do §8/§9 findings survive?
+python -m experiments.grinding           # grinding cost vs cheat magnitude and rounds
 ```
 
 ## Status

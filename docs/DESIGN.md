@@ -344,13 +344,74 @@ realistic regime, loss monitoring is insufficient and **per-step verification is
 optional** — the strongest case yet for this scheme. Remaining caveats: one trigger/target, MSE
 objective, ≤256 width / 4 layers, numpy/CPU.
 
-## 10. Prior art / positioning
+## 10. Security definition, soundness, and multi-node threats (M3)
+
+### 10.1 Definitions
+
+Parties: an honest coordinator, a prover node `N`, and a verifier `V` (anyone). A public beacon
+`β` (Solana block hash / VRF) is drawn *after* commitments. A step is a transcript
+`τ = (θ_t-root, shard-root, node-id, seed, {(Aᵢ,Bᵢ,Cᵢ)}, update)` published as a Merkle root `cm`.
+For each challenged matmul `i`, the probes `(Rᵢ,Lᵢ) = PRF(cm, β, i)`. `V` accepts iff the opened
+transcript matches `cm`, the shard root matches the assignment, the claimed dtype ≥ `min_dtype`,
+and the two-sided residuals are within the calibrated threshold `τᵢ` (§5). **"Detected" = `V`
+rejects.** Adversary `N`: chooses `τ` adaptively but must publish `cm` *before* `β`; cannot
+predict `β`; may control a fraction `φ` of beacon contributors; is computationally bounded
+(no SHA-256 preimages).
+
+- **Completeness.** An honest node (each `Cᵢ = fl(AᵢBᵢ)` at its claimed dtype) is accepted with
+  probability 1: the calibrated inf-bound `τᵢ` deterministically upper-bounds `‖E r‖∞` for the
+  rounding error `E` and *any* ±1 probe, on both sides (§5).
+- **Soundness (per matmul).** If `Cᵢ` deviates from the exact product by `Δ` beyond the honest
+  envelope, `V` rejects with probability ≥ `1 − p_evade` (bounded below). Over `k` rounds and two
+  sides, a step escapes with probability ≤ `(p_right·p_left)^k`.
+
+### 10.2 Soundness bound (argument, gaps marked)
+
+Write `C = AB + E + Δ`: honest rounding `E` (with `‖E r‖∞ ≤ τ` for any ±1 `r`, §5) plus
+adversarial deviation `Δ`. The right residual is `‖(E+Δ)r‖∞ ≥ ‖Δr‖∞ − τ`, so `V` accepts only if
+`‖Δr‖∞ ≤ 2τ`. Let `δ` be the row of `Δ` of largest 2-norm `σ`. For a Rademacher `r` drawn after
+the commitment, `δ·r` is a zero-mean ± sum; by Berry–Esseen it is ≈ `N(0, σ²)`, giving
+
+```
+p_evade ≤ Pr[|δ·r| ≤ 2τ] ≤ sqrt(2/pi) · (2τ/σ) + 2·C0·ρ3,   C0 ≤ 0.56,  ρ3 = Σ|δ_j|³ / σ³.
+```
+
+So any cheat with `σ ≫ τ` is caught with probability → 1 per probe; `k` independent probes give
+`p_evade^k`; and two-sided probing means a rank-1 cheat `uvᵀ` that nulls the right probe
+(`v ⊥ r`) is still caught by a fresh left probe unless `u ⊥ l` simultaneously — probability
+`≤ p_right·p_left`. **Marked gaps:** (i) the Berry–Esseen term bounds the *typical* `δ`; a tight
+constant for adversarial entry distributions needs a Littlewood–Offord small-ball argument;
+(ii) `τ` is a *deterministic* worst-case bound only at **≥ fp32** (§5) — at bf16 it is statistical,
+so the guarantee is heuristic there (recommend fp32 on the challenged layer); (iii) "meaningful
+cheat" (`σ ≫ τ`) excludes sub-noise-floor deviations, which are harmless on the loss (§8) but not
+on a targeted trigger (§9b) — so the *per-step check*, not this bound alone, is the operative
+defense for backdoors.
+
+### 10.3 Multi-node: free-riding and collusion
+
+Verification is against the Fiat-Shamir math, not peer witnessing, so colluding provers cannot
+vouch for each other's wrong work (the probe is fixed by `cm` and `β`, not by peers). Two vectors
+remain:
+
+- **Free-riding / copying** — a node resubmits a peer's update. Detected by grouping identical
+  submitted updates across nodes (`collusion.detect_free_riders`); honest nodes on different
+  shards/seeds never collide, and the commitment binds node id + seed (`collusion.identity_bound`),
+  so a replayed commitment can't be re-attributed. Tested in `tests/test_collusion.py` (a copier
+  and a 4-way colluding group are both flagged; distinct honest updates are not).
+- **Beacon grinding / collusion** — with pure Fiat-Shamir a node grinds a commitment nonce until
+  the induced probe evades; expected work `1/q_k`. Measured (`experiments/grinding.py`, fp32):
+  `ρ=3e-5` needs `2.5 / 6.2 / 38` tries at `k=1/2/4`, and `ρ ≥ 1e-4` is infeasible (`q_k = 0`). A
+  fresh public beacon drawn after the commit removes grinding entirely; beacon collusion by a
+  fraction `φ` only grants cheap resamples, which still hit the same `1/q_k` wall — so **`k` is the
+  universal knob** (figure `grinding.png`).
+
+## 11. Prior art / positioning
 
 - zkFL (gradient aggregation) · ZKML survey · VeriLLM (inference side).
 - Proof-of-Learning (Jia et al.) and its spoofing attacks (Fang et al.).
 - Niche: training-step verification for *real* decentralized runs is wide open.
 
-## 11. Landing it with Nous
+## 12. Landing it with Nous
 
 Build against the open Psyche repo; open a discussion framing the recompute-cost problem;
 share MVP benchmarks; offer as an optional verification module. Parallel track: a paper.

@@ -339,9 +339,38 @@ def fig_scale():
     _save(fig, "scale_backdoor.png")
 
 
+# --- 9. Grinding resistance: expected work to find an evading probe ---------------------
+def fig_grinding():
+    n = 256
+    rng = np.random.default_rng(0)
+    A = rng.normal(size=(n, n)).astype(np.float32)
+    B = rng.normal(size=(n, n)).astype(np.float32)
+    C = node_matmul(A, B, in_dtype="fp32", out_dtype="fp32").astype(np.float64)
+    tau = calibrated_threshold(A, B, "fp32", mode="inf", safety=8.0)
+    rhos = np.geomspace(1e-5, 2e-4, 14)
+    fig, ax = plt.subplots(figsize=(5.6, 4))
+    for k, col in [(1, BLUE), (4, RED)]:
+        tries = []
+        for rho in rhos:
+            d = rng.normal(size=C.shape)
+            d *= rho * np.linalg.norm(C) / np.linalg.norm(d)
+            probes = rng.choice([-1.0, 1.0], size=(n, 3000))
+            q1 = float(np.mean(freivalds_residual_with(A, B, C + d, probes) <= tau))
+            tries.append(np.inf if q1 == 0 else q1 ** (-k))
+        tries = np.array(tries)
+        fin = np.isfinite(tries)
+        ax.semilogy(rhos[fin], tries[fin], "o-", color=col, label=f"k={k} probes")
+    ax.set_xscale("log")
+    ax.set_xlabel("cheat magnitude $\\rho = \\|\\Delta\\|/\\|C\\|$")
+    ax.set_ylabel("expected commitments to grind ($1/q_k$)")
+    ax.set_title("Grinding work explodes with cheat size and rounds")
+    ax.legend()
+    _save(fig, "grinding.png")
+
+
 def main():
     for f in (fig_fp_crux, fig_adaptive, fig_compressed, fig_multiround,
-              fig_curvature, fig_backdoor, fig_backdoor_capacity, fig_scale):
+              fig_curvature, fig_backdoor, fig_backdoor_capacity, fig_scale, fig_grinding):
         f()
 
 
