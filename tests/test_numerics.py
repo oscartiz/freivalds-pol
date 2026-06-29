@@ -55,3 +55,29 @@ def test_higher_precision_gives_tighter_bound():
 def test_effective_gamma_regimes():
     assert effective_gamma("bf16", regime="tensorcore") == UNIT_ROUNDOFF["bf16"]
     assert effective_gamma("bf16", k=512, regime="naive") == 512 * UNIT_ROUNDOFF["bf16"]
+
+
+def test_effective_gamma_invalid_inputs():
+    import pytest
+    with pytest.raises(ValueError):
+        effective_gamma("bf16", regime="naive")          # naive needs k
+    with pytest.raises(ValueError):
+        effective_gamma("bf16", regime="nonsense")
+
+
+def test_l2_bound_is_tighter_than_inf_bound():
+    from freivalds_pol.numerics import honest_bound_l2
+    rng = np.random.default_rng(0)
+    A = rng.normal(size=(48, 48))
+    B = rng.normal(size=(48, 48))
+    assert honest_bound_l2(A, B, 1e-3) <= honest_bound_inf(A, B, 1e-3)
+
+
+def test_calibrated_threshold_modes_and_sides():
+    rng = np.random.default_rng(1)
+    A = rng.normal(size=(40, 50))
+    B = rng.normal(size=(50, 40))
+    inf_r = calibrated_threshold(A, B, "fp32", mode="inf", side="right")
+    inf_l = calibrated_threshold(A, B, "fp32", mode="inf", side="left")
+    l2 = calibrated_threshold(A, B, "fp32", mode="l2")
+    assert inf_r > 0 and inf_l > 0 and 0 < l2 <= inf_r

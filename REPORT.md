@@ -168,13 +168,29 @@ al.); zkFL gradient aggregation; the ZK-verifiable-ML survey; VeriLLM (verifiabl
 
 ```bash
 pip install -e ".[dev,viz]"
-pytest -q                       # 55 tests
-make figures                    # regenerate every figure in figures/
-python -m experiments.backdoor_capacity   # the headline §4.7 result
+make test            # 59 tests
+make coverage        # 99% line coverage on the library
+make figures         # regenerate every figure in figures/
+make experiments     # rerun every experiment script
 ```
 
 Every number above comes from a script under `experiments/`; every figure from
 `experiments/figures.py`. Design details and derivations are in [`docs/DESIGN.md`](docs/DESIGN.md).
+
+**Determinism.** Every experiment seeds its NumPy `Generator` explicitly (e.g.
+`default_rng(0)`), and every Monte-Carlo inner loop is seeded by its iteration index, so a run
+reproduces exactly on a fixed environment. *Caveat:* bit-for-bit identical figures across
+machines also require the same NumPy/BLAS build and thread count, because BLAS may reorder
+floating-point matmul accumulation; set `OMP_NUM_THREADS=1` for the strictest reproducibility.
+The qualitative results (detection rates, drift exponents, the capacity trend) are stable across
+environments. Reference environment for the numbers and figures here: Python 3.14, NumPy 2.x,
+single-threaded BLAS, CPU.
+
+**Test coverage.** 59 tests, **99%** line coverage of `src/freivalds_pol` (`make coverage`).
+The few uncovered lines are defensive zero-norm guards, the single-leaf Merkle edge case, and
+the `two_sided=False` verifier branch; the offline `l2` bound, the naive-accumulation γ regime,
+and `freivalds_check_threshold` are now tested. CI (`.github/workflows/ci.yml`) runs ruff +
+pytest on Python 3.10 and 3.12 on every push.
 
 ## 8. Conclusion
 

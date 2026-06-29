@@ -20,6 +20,16 @@ def test_wrong_product_fails():
     assert not freivalds_check(A, B, C, rounds=16, rng=rng)
 
 
+def test_check_threshold_accepts_honest_rejects_wrong():
+    from freivalds_pol.freivalds import freivalds_check_threshold
+    rng = np.random.default_rng(3)
+    A = rng.normal(size=(50, 50))
+    B = rng.normal(size=(50, 50))
+    C = A @ B
+    assert freivalds_check_threshold(A, B, C, 1e-6, rounds=8, rng=rng)
+    assert not freivalds_check_threshold(A, B, C + 1.0, 1e-6, rounds=16, rng=rng)
+
+
 def test_residual_small_for_honest_large_for_wrong():
     rng = np.random.default_rng(2)
     A = rng.normal(size=(32, 32))

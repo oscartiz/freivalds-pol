@@ -1,10 +1,13 @@
-.PHONY: install test figures lint experiments all clean
+.PHONY: install test coverage figures lint experiments all clean
 
 install:
 	pip install -e ".[dev,viz]"
 
 test:
 	pytest -q
+
+coverage:
+	pytest -q --cov=freivalds_pol --cov-report=term-missing
 
 lint:
 	ruff check src tests experiments

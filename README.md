@@ -1,8 +1,8 @@
 # freivalds-pol
 
+[![ci](https://github.com/oscartiz/freivalds-pol/actions/workflows/ci.yml/badge.svg)](https://github.com/oscartiz/freivalds-pol/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-55%20passing-brightgreen)
 
 **Cheap, sound verification of decentralized training steps** — a research prototype aimed at
 [Nous Research](https://nousresearch.com)'s [Psyche](https://psyche.network) / DisTrO network.
