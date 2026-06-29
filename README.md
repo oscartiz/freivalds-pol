@@ -52,6 +52,7 @@ src/freivalds_pol/
   curvature.py     Hessian-vector products + power iteration (flat/steep loss directions)
   model.py         multi-layer/multi-head transformer + AdamW (for scaling §8/§9)
   collusion.py     free-riding / update-copying detection + identity binding
+  zk.py            non-interactive sumcheck argument for one matmul + PCS interface
   commitments.py   SHA-256 Merkle tree over transcript leaves
   transcript.py    StepTranscript / MatMulRecord (carries claimed dtype) + commitment
   challenge.py     random challenge sampling + Fiat-Shamir (commitment-derived) probes
@@ -69,6 +70,7 @@ experiments/
   backdoor_capacity.py  does over-parameterization open a stealthy backdoor? (yes)
   scale.py         re-run §8/§9 on a deep model + AdamW (do the findings survive?)
   grinding.py      expected work to grind an evading Fiat-Shamir probe vs cheat size
+  zk_matmul.py     ZK sumcheck proof for one GEMM + honest cost vs recompute/Freivalds
   figures.py       regenerate every figure in figures/
 tests/             10 pytest files (55 tests) across every module
 docs/DESIGN.md     12-section design document; REPORT.md     research writeup with figures
@@ -99,6 +101,7 @@ python -m experiments.backdoor           # targeted backdoor: stealth-vs-harm tr
 python -m experiments.backdoor_capacity  # over-parameterization widens the stealth window
 python -m experiments.scale              # deep model + AdamW: do §8/§9 findings survive?
 python -m experiments.grinding           # grinding cost vs cheat magnitude and rounds
+python -m experiments.zk_matmul          # ZK sumcheck proof for one GEMM + honest costs
 ```
 
 ## Status

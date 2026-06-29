@@ -405,13 +405,40 @@ remain:
   fraction `φ` only grants cheap resamples, which still hit the same `1/q_k` wall — so **`k` is the
   universal knob** (figure `grinding.png`).
 
-## 11. Prior art / positioning
+## 11. Zero-knowledge spot-check (M4)
+
+The privacy goal (§2) needs a proof that a challenged `C = A·B` is correct *without revealing*
+`A`, `B`. `zk.py` implements the core: the classical multilinear **sumcheck** reduction
+(Lund–Fortnow–Karloff–Nisan / Thaler) over `F_p`, `p = 2⁶¹−1`, made non-interactive with
+Fiat–Shamir. Pick random `rx, rz`; reduce `C̃(rx,rz) = Σ_{y} Ã(rx,y)·B̃(y,rz)` to a `log₂k`-round
+sumcheck (one degree-2 polynomial = 3 field elements per round) ending in two evaluations
+`Ã(rx,ry)`, `B̃(ry,rz)`.
+
+**Implemented and tested (`tests/test_zk.py`):** the full sumcheck prover/verifier, end-to-end on
+a GEMM; soundness (a tampered `C` or a lied final evaluation is rejected — Schwartz–Zippel gives
+false-accept probability ≤ `2·log₂k / p ≈ 10⁻¹⁷`); MLE/`chi` correctness.
+
+**Honestly stubbed (the scope cut):** confirming the two final evaluations *without the matrices*
+requires a **polynomial commitment**. `PolyCommitment` is the interface; `RevealCommitment` is an
+INSECURE reference that opens by recomputing the MLE from the data — so the prototype is **sound
+but neither hiding nor succinct on the opening**. A real PCS (KZG via pairings, or FRI) is future
+work.
+
+**Honest cost (`experiments/zk_matmul.py`, 64³ GEMM, `F_p`):** proof = 20 field elements (6
+rounds); the sumcheck *chain* verifies in ~0.26 ms; but `verify_full` with the reveal-PCS still
+recomputes the openings in O(mk), so it does **not** beat recompute and is **not** private as
+prototyped. Even with a real PCS, ZK costs far more than Freivalds' O(n²) µs-scale check — **ZK's
+value is privacy + non-interactive public verifiability, not raw speed**, and the report says so.
+A further gap: ML matmuls are float, so they need fixed-point encoding into `F_p`; ZK then proves
+the *quantized* matmul exactly, moving the FP-threshold question (§5) into the quantization step.
+
+## 12. Prior art / positioning
 
 - zkFL (gradient aggregation) · ZKML survey · VeriLLM (inference side).
 - Proof-of-Learning (Jia et al.) and its spoofing attacks (Fang et al.).
 - Niche: training-step verification for *real* decentralized runs is wide open.
 
-## 12. Landing it with Nous
+## 13. Landing it with Nous
 
 Build against the open Psyche repo; open a discussion framing the recompute-cost problem;
 share MVP benchmarks; offer as an optional verification module. Parallel track: a paper.

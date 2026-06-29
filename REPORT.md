@@ -171,9 +171,11 @@ models Psyche targets.
 
 - Validated up to a 4-layer / 8-head transformer with AdamW (§4.5–4.7), numpy/CPU; not yet at
   nanoGPT scale or on a language objective.
-- DeMo is a faithful *simplification* (whole-tensor tiling, per-tile top-k); not byte-identical
-  to Nous's implementation. The phase-2 zero-knowledge spot-check is designed (§ design doc) but
-  not implemented.
+- DeMo is matched closely (`demo.py`, 2D-chunk DCT) but not byte-identical to Nous's torch
+  implementation (ULP-level transform/tie-break differences; documented in DESIGN §7b).
+- The zero-knowledge spot-check is **prototyped, not complete**: a sound non-interactive sumcheck
+  argument for one GEMM works end-to-end (`zk.py`), but the hiding/succinct opening needs a real
+  polynomial commitment (KZG/FRI) — interface present, implementation future work (DESIGN §11).
 - The backdoor study uses one trigger/target and an MSE objective; the alarming AdamW result
   (§4.7) should be reproduced on a richer objective and at larger scale.
 
