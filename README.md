@@ -46,7 +46,8 @@ src/freivalds_pol/
   adaptive.py      adaptive adversaries (nullspace / fixed cheats)
   training.py      a real MLP training step -> MatMulRecords (+ finite-difference grad-check)
   transformer.py   a real Llama-style block step (RMSNorm/attention/GELU) -> 8 GEMMs, grad-checked
-  compressor.py    DeMo-style update compression (momentum/DCT/top-k) + per-tile verifier
+  compressor.py    simplified (1D-tiled) update compression + per-tile verifier
+  demo.py          faithful 2D-chunk DeMo (decay/2D-DCT/top-k/error feedback) + per-block verifier
   trainer.py       multi-round DeMo training loop + budget-constrained adversaries
   curvature.py     Hessian-vector products + power iteration (flat/steep loss directions)
   model.py         multi-layer/multi-head transformer + AdamW (for scaling §8/§9)

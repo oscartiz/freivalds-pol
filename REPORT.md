@@ -111,6 +111,12 @@ while the verifier inspects a tiny fraction of tiles.
 
 ![Compressed update](figures/compressed.png)
 
+`compressor.py` is a simplified 1D-tiled instance; `demo.py` follows reference DeMo (2D-chunk
+DCT, decay-0.999 error feedback, top-k) with conformance tests against hand-computed known
+vectors. The per-block verifier is unchanged because it works for any orthonormal transform, and
+DeMo's sign-quantization happens at *aggregation*, not in a node's payload — so node-level
+verification is faithful. Exact deltas vs the reference are tabulated in `docs/DESIGN.md` §7b.
+
 ### 4.5 Multi-round: do sub-threshold cheats accumulate?
 
 A node that cheats just under the threshold every round is never caught. The naive fear is

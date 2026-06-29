@@ -181,6 +181,50 @@ lazy / fake-values / wrong-top-k / bad-residual — is caught with detection 0.2
 This closes the loop: **the expensive gradient is verified probabilistically by Freivalds;
 the cheap compression is verified by direct per-tile recompute; both are bound by commitments.**
 
+### 7b. Fidelity to reference DeMo (M2)
+
+`compressor.py` is a *simplified* instance (1D-tiled, single decay, real-valued apply).
+`demo.py` follows the reference DeMo (bloc97/DeMo; Peng et al., arXiv:2411.19870) closely for
+2D tensors. The reference algorithm, per parameter tensor, is:
+
+```
+delta = compression_decay * delta + lr * grad      # decay default 0.999
+coeff = 2D-DCT of each (chunk x chunk) block        # chunk default 64
+idx, val = top-k |coeff| per block                  # topk default 32
+transmit (idx, val);  applied = inverse-2D-DCT(sparse top-k)
+delta = delta - applied                             # error feedback
+# ... all-gather sparse across nodes, then:
+grad_agg = sign(sum of decoded updates)             # SIGN quantization at aggregation
+SGD step on grad_agg
+```
+
+Exact deltas of this repo vs the reference:
+
+| aspect | reference DeMo | `demo.py` | `compressor.py` |
+|---|---|---|---|
+| accumulator | `decay*delta + lr*grad`, decay 0.999 | same (configurable) | `decay*m + update`, decay 0.9 |
+| transform | **2D** DCT on chunks of a divisor size ~64 | 2D DCT, chunk divisor (require divisible) | **1D** DCT on flat 64-tiles |
+| top-k | 32 / chunk, by magnitude | k / chunk, by magnitude | k / tile, by magnitude |
+| transmit | (index, value) sparse | (index, value) sparse | (index, value) sparse |
+| error feedback | `delta -= applied` | same | same |
+| aggregation | **sign-quantize** the summed decode | not modeled (see below) | not modeled |
+
+What still cannot be byte-identical, and why: torch vs numpy DCT bases and einsum accumulation
+order, and `topk` tie-breaking, differ at the ULP level — the payloads are numerically but not
+bitwise equal. The reference also reshapes each tensor to the *closest divisor* of 64; `demo.py`
+requires divisible dims (a divisor chunk is exactly what DeMo picks, so this is a restriction of
+convenience, not of behavior).
+
+Why the verifier still holds. (1) The DCT is just one orthonormal transform `C` (`C Cᵀ = I`); the
+per-block check — recompute `coeff = C·block·Cᵀ`, confirm the transmitted values and that the
+indices are the true top-k, confirm `delta_next = delta − idct(sparse)` — is identical in form
+for 1D or 2D DCT, so it transfers verbatim (`demo.verify`). (2) The **sign-quantization is a
+public, deterministic transform applied at *aggregation*** (on the summed, decoded updates), not
+part of any node's transmitted payload — so it does not affect per-node verification; a verifier
+or coordinator recomputes `sign(·)` for free. Conformance is pinned by `tests/test_demo.py`
+(2D-DCT round-trip; constant block → pure DC = `v·c`; a one-hot coefficient → exact top-1;
+error-feedback invariant `applied + delta_next == delta`).
+
 ## 8. Multi-round security: do sub-threshold cheats accumulate?
 
 The deepest question. A node that cheats *below* the per-step detection threshold every round
