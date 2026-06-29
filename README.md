@@ -8,7 +8,7 @@
 [Nous Research](https://nousresearch.com)'s [Psyche](https://psyche.network) / DisTrO network.
 
 📄 **Research writeup with figures: [`REPORT.md`](REPORT.md)** · design & derivations:
-[`docs/DESIGN.md`](docs/DESIGN.md)
+[`docs/DESIGN.md`](docs/DESIGN.md) · prototype→system log: [`CHANGES.md`](CHANGES.md)
 
 > Replace Psyche's ~2× redundant recompute with **sub-1%** probabilistic spot-checks, made sound
 > on heterogeneous hardware by a floating-point model, hardened against adaptive adversaries, and

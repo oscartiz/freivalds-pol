@@ -10,21 +10,27 @@ floating-point, adaptive-adversary, and multi-round security analysis.**
 ## Abstract
 
 Decentralized training networks such as [Nous Research](https://nousresearch.com)'s
-[Psyche](https://psyche.network) let untrusted nodes contribute gradient work and reward them
-for it, which creates an incentive to cheat. Psyche today verifies work by **redundant
-recompute-and-compare**, costing ~2× the compute to verify 1× of work. We design and measure a
-verifier that catches cheating at **far less than recompute cost**: Merkle commitments + random
-challenges + **Freivalds' probabilistic matmul check** (O(n²) vs O(n³)), a **floating-point
-error model** that makes the acceptance threshold sound on heterogeneous hardware, a
-**commit-then-sample** (Fiat–Shamir) probe with **two-sided** checks that closes adaptive
-attacks, and a **per-tile** verifier for DisTrO's compressed (DeMo) wire format. We then ask
-the questions that decide whether the scheme is sound for a *training run*, not just one step:
-do never-detected **sub-threshold** cheats accumulate (no — sublinearly, loss unharmed); does a
-**curvature-targeted** adversary beat random (no edge); and can a **targeted backdoor** evade
-both per-step detection and loss monitoring? The answer is the sharpest result here: at matched
-capacity, no — but **over-parameterization widens the stealth window**, so per-step verification
-is *most necessary* exactly for the large models Psyche targets. Everything runs end-to-end on a
-real, gradient-checked transformer block; 55 tests; all figures reproducible.
+[Psyche](https://psyche.network) reward untrusted nodes for gradient work, creating an incentive
+to cheat; Psyche verifies via **redundant recompute-and-compare** (~2× cost). We design, build,
+and measure a cheaper verifier — Merkle-committed transcripts + **Freivalds' probabilistic matmul
+check** (O(n²) vs O(n³)) with a **floating-point soundness model**, **commit-then-sample**
+(Fiat–Shamir) **two-sided** probes against adaptive attacks, and a **per-tile** check for the
+DeMo compressed wire format — and stress-test whether it is sound for a *training run*, not just
+one step.
+
+We separate what is **validated** from what is **suggestive**. *Validated* (now up to a 4-layer,
+8-head transformer trained with **AdamW**): the O(n²) check detects cheats at sub-1% of recompute
+cost; the FP threshold is sound only at ≥ fp32 on the challenged layer; commit-then-sample +
+two-sided probing closes the adaptive (nullspace) break; never-detected **sub-threshold cheats do
+not accumulate** (drift exponent ≈0.2–0.3 vs the linear 1.0) and a **curvature-targeted**
+adversary gains no edge — both confirmed at scale. The **headline, and a self-correction**: a
+single-block / toy-SGD experiment suggested "no stealthy backdoor," but at scale **with a real
+optimizer the backdoor becomes loss-stealthy** (~98% implanted at <1.1× test loss) — so loss
+monitoring is insufficient and **per-step verification is necessary, not optional**, exactly where
+it matters most. *Suggestive / scoped:* soundness is a stated bound with marked gaps (§ design
+doc); the ZK spot-check is a working but non-hiding sumcheck prototype pending a polynomial
+commitment; everything is numpy/CPU at ≤256 width. 80 tests, 99% coverage, CI-green, all numbers
+script-backed and all figures regenerable.
 
 ---
 
@@ -167,17 +173,38 @@ realistic regime **loss monitoring is insufficient and per-step verification is 
 optional** — it carries the security the loss metric cannot, exactly for the large, capacity-rich
 models Psyche targets.
 
-## 5. Limitations
+## 5. Threats to validity
 
-- Validated up to a 4-layer / 8-head transformer with AdamW (§4.5–4.7), numpy/CPU; not yet at
+Per major result, the most likely reason it could be wrong:
+
+- **Cheap detection (§4.1).** Detection follows `1−(1−f)^k` *given* the probe is unpredictable
+  and the threshold is calibrated; a predictable probe or a too-loose threshold breaks it (both
+  addressed in §4.2–4.3). The cost ratio assumes the gradient GEMMs dominate; tiny layers blur it.
+- **FP threshold (§4.2).** The O(n²) bound is a *worst-case* deterministic bound only at ≥ fp32;
+  at bf16 it is statistical and the soundness guarantee is heuristic. Cross-hardware drift larger
+  than modeled (exotic accumulation orders) could raise the floor.
+- **Adaptive defense (§4.3).** Soundness rests on the beacon being unbiasable and on SHA-256
+  preimage resistance; a biased beacon or a grinding budget beyond §10.3's `1/q_k` wall would
+  weaken it. The two-sided bound is argued, not fully proven (§10.2 gaps).
+- **Compressed update (§4.4).** Faithful to DeMo's *payload* but not bit-identical (DESIGN §7b);
+  the sign-quantization is assumed to be a public aggregation step (true in the reference code).
+- **Sub-threshold accumulation & curvature (§4.5–4.6).** Confirmed at 4 layers / AdamW, but the
+  drift exponent and "no curvature edge" are empirical over finite runs (R≤300) and could differ
+  far from convergence, at much larger depth, or under a learning-rate schedule.
+- **Backdoor (§4.7).** The alarming AdamW result uses *one* trigger/target and an MSE objective;
+  a language objective, multiple triggers, or different optimizers might shift the implant/loss
+  trade-off. The per-step-detectability claim assumes the corrupted GEMM is among those challenged.
+
+## 5b. Limitations / open
+
+- Validated up to a 4-layer / 8-head transformer with AdamW, numpy/CPU, ≤256 width; not yet at
   nanoGPT scale or on a language objective.
-- DeMo is matched closely (`demo.py`, 2D-chunk DCT) but not byte-identical to Nous's torch
-  implementation (ULP-level transform/tie-break differences; documented in DESIGN §7b).
-- The zero-knowledge spot-check is **prototyped, not complete**: a sound non-interactive sumcheck
-  argument for one GEMM works end-to-end (`zk.py`), but the hiding/succinct opening needs a real
-  polynomial commitment (KZG/FRI) — interface present, implementation future work (DESIGN §11).
-- The backdoor study uses one trigger/target and an MSE objective; the alarming AdamW result
-  (§4.7) should be reproduced on a richer objective and at larger scale.
+- The ZK spot-check is **prototyped, not complete**: a sound non-interactive sumcheck argument
+  for one GEMM works end-to-end (`zk.py`), but the hiding/succinct opening needs a real polynomial
+  commitment (KZG/FRI) — interface present, implementation future work (§11).
+- Soundness (§10.2) is a stated bound with marked gaps (tight Littlewood–Offord constant; bf16).
+- Fusing the gradient (Freivalds) and compression (per-tile) checks into one verifier over a
+  committed accumulator chain across rounds is designed but not implemented.
 
 ## 6. Related work
 
@@ -190,8 +217,8 @@ al.); zkFL gradient aggregation; the ZK-verifiable-ML survey; VeriLLM (verifiabl
 
 ```bash
 pip install -e ".[dev,viz]"
-make test            # 59 tests
-make coverage        # 99% line coverage on the library
+make test            # 80 tests
+make coverage        # ~99% line coverage on the library
 make figures         # regenerate every figure in figures/
 make experiments     # rerun every experiment script
 ```
@@ -208,17 +235,19 @@ The qualitative results (detection rates, drift exponents, the capacity trend) a
 environments. Reference environment for the numbers and figures here: Python 3.14, NumPy 2.x,
 single-threaded BLAS, CPU.
 
-**Test coverage.** 59 tests, **99%** line coverage of `src/freivalds_pol` (`make coverage`).
-The few uncovered lines are defensive zero-norm guards, the single-leaf Merkle edge case, and
-the `two_sided=False` verifier branch; the offline `l2` bound, the naive-accumulation γ regime,
-and `freivalds_check_threshold` are now tested. CI (`.github/workflows/ci.yml`) runs ruff +
-pytest on Python 3.10 and 3.12 on every push.
+**Test coverage.** 80 tests, ~**99%** line coverage of `src/freivalds_pol` (`make coverage`).
+CI (`.github/workflows/ci.yml`) runs ruff + pytest on Python 3.10 and 3.12 on every push.
 
 ## 8. Conclusion
 
 Probabilistic verification can replace redundant recompute for decentralized training at sub-1%
-cost, *if* the threshold is grounded in a floating-point model and the probe is committed before
-it is revealed. Across an FP analysis, an adaptive adversary, the compressed wire format, and
-multi-round dynamics, the scheme holds — and the one place it weakens, over-parameterized
-backdoors, is precisely the place it is most needed. Four of the project's own hypotheses were
-overturned by its own measurements; each correction sharpened the result.
+cost — *if* the threshold is grounded in a floating-point model (≥ fp32 on the challenged layer)
+and the probe is committed before it is revealed. The scheme's *accumulation* safety (sub-threshold
+cheats stay sublinear; curvature targeting gains no edge) **holds up to a 4-layer / 8-head model
+trained with AdamW**. Its sharpest result is a self-correction: a toy-SGD experiment suggested
+backdoors are un-stealthy, but **with a real optimizer the backdoor becomes loss-stealthy**, so
+loss monitoring is insufficient and per-step verification is *necessary* — strongest exactly for
+the large models Psyche targets. What remains open is honestly bounded: a complete proof, a real
+polynomial-commitment ZK opening, and nanoGPT/language-objective scale. Five of the project's own
+hypotheses were overturned by its own measurements; each correction sharpened the result and is
+recorded in [`CHANGES.md`](CHANGES.md).
