@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "freivalds-pol: Cheap verification of decentralized training steps"
+message: "If you use this work, please cite it."
+type: software
+authors:
+  - given-names: Oscar
+    family-names: Tiznado
+    affiliation: CIMAT
+abstract: >-
+  A probabilistic + optimistic scheme to verify decentralized training steps
+  (Nous Research's Psyche / DisTrO) at far below recompute cost: Merkle
+  commitments + Freivalds' matmul check with a floating-point soundness model,
+  commit-then-sample two-sided probes against adaptive adversaries, and per-tile
+  verification of the DeMo-compressed wire format, with a multi-round and
+  targeted-backdoor security analysis.
+keywords:
+  - verifiable computation
+  - decentralized training
+  - Freivalds algorithm
+  - DisTrO
+  - DeMo
+  - machine learning security
+license: MIT
+version: "0.0.1"
+date-released: "2026-06-29"
