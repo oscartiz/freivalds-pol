@@ -81,3 +81,43 @@ def bottom_eigvec(blk, X, Y, lam_top, *, iters=30, seed=1):
             break
         v = w / nv
     return rayleigh(blk, X, Y, v), v
+
+
+# --- generic, model-agnostic versions (grad_fn: flat params -> flat gradient) -------------
+
+def hvp_flat(grad_fn, params, v, eps=1e-3):
+    return (grad_fn(params + eps * v) - grad_fn(params - eps * v)) / (2 * eps)
+
+
+def rayleigh_flat(grad_fn, params, v):
+    v = v / np.linalg.norm(v)
+    return float(v @ hvp_flat(grad_fn, params, v))
+
+
+def top_eigvec_flat(grad_fn, params, *, iters=25, seed=0):
+    rng = np.random.default_rng(seed)
+    v = rng.normal(size=params.size)
+    v /= np.linalg.norm(v)
+    lam = 0.0
+    for _ in range(iters):
+        Hv = hvp_flat(grad_fn, params, v)
+        lam = float(v @ Hv)
+        nv = np.linalg.norm(Hv)
+        if nv == 0:
+            break
+        v = Hv / nv
+    return lam, v
+
+
+def bottom_eigvec_flat(grad_fn, params, lam_top, *, iters=25, seed=1):
+    rng = np.random.default_rng(seed)
+    v = rng.normal(size=params.size)
+    v /= np.linalg.norm(v)
+    shift = abs(lam_top) * 1.1 + 1e-9
+    for _ in range(iters):
+        w = shift * v - hvp_flat(grad_fn, params, v)
+        nv = np.linalg.norm(w)
+        if nv == 0:
+            break
+        v = w / nv
+    return rayleigh_flat(grad_fn, params, v), v

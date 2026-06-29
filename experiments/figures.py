@@ -279,9 +279,69 @@ def fig_backdoor_capacity():
     _save(fig, "backdoor_capacity.png")
 
 
+# --- 8. Scaled backdoor: deep model + AdamW makes the backdoor loss-stealthy ------------
+def fig_scale():
+    from freivalds_pol.model import Transformer, forward, loss_and_grads, train
+    D2, NL, NH, T2, R0, R = 128, 4, 8, 32, 40, 180
+    budgets = [1e-3, 1e-2, 1e-1, 3e-1]
+    w = 256
+    cfg = dict(d=D2, d_ff=w, n_layers=NL, n_heads=NH, T=T2, lr=1e-2,
+               teacher_layers=1, teacher_d_ff=16)
+    x = 3.0 * np.random.default_rng(2024).choice([-1.0, 1.0], size=(8, D2))
+
+    def mk(flat):
+        return Transformer.init(D2, w, NL, NH, np.random.default_rng(0)).set_flat(flat)
+
+    def test_loss(flat):
+        m = mk(flat)
+        teacher = Transformer.init(D2, 16, 1, NH, np.random.default_rng(100))
+        rng = np.random.default_rng(999)
+        return float(np.mean([np.mean((forward(m, xx := rng.normal(size=(T2, D2)))
+                     - (forward(teacher, xx) + 0.01 * rng.normal(size=(T2, D2)))) ** 2)
+                     for _ in range(6)]))
+
+    def make_attack(b):
+        st = {"g": None}
+
+        def hook(t, model):
+            if t >= R0:
+                gv = loss_and_grads(model, x, y)[1]
+                nrm = np.linalg.norm(gv)
+                st["g"] = gv / nrm if nrm else None
+
+        def adv(g, t):
+            ok = t >= R0 and st["g"] is not None
+            return g + (b * np.linalg.norm(g)) * st["g"] if ok else g
+        return adv, hook
+
+    y = -forward(mk(train(R0, **cfg)["final"]), x)
+    honest = train(R0 + R, **cfg)
+    rms_h = float(np.sqrt(np.mean((forward(mk(honest["final"]), x) - y) ** 2)))
+    base = test_loss(honest["final"])
+    impl, ratio = [], []
+    for b in budgets:
+        adv, hook = make_attack(b)
+        run = train(R0 + R, adversary=adv, hook=hook, **cfg)
+        impl.append(1 - float(np.sqrt(np.mean((forward(mk(run["final"]), x) - y) ** 2))) / rms_h)
+        ratio.append(test_loss(run["final"]) / base)
+
+    fig, ax = plt.subplots(figsize=(5.6, 4))
+    ax.semilogx(budgets, impl, "o-", color=RED, label="backdoor implanted")
+    ax2 = ax.twinx()
+    ax2.grid(False)
+    ax2.semilogx(budgets, ratio, "s--", color=BLUE, label="test loss (x honest)")
+    ax.axvline(1e-5, color=GREY, ls=":", label="per-step floor $\\rho^*$")
+    ax.set_xlabel("per-round budget (fraction of $\\|g\\|$)")
+    ax.set_ylabel("backdoor implanted", color=RED)
+    ax2.set_ylabel("test loss / honest", color=BLUE)
+    ax.set_title("Deep + AdamW: loss-stealthy backdoor (but caught per-step)")
+    ax.legend(loc="center left", fontsize=8)
+    _save(fig, "scale_backdoor.png")
+
+
 def main():
     for f in (fig_fp_crux, fig_adaptive, fig_compressed, fig_multiround,
-              fig_curvature, fig_backdoor, fig_backdoor_capacity):
+              fig_curvature, fig_backdoor, fig_backdoor_capacity, fig_scale):
         f()
 
 

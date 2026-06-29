@@ -17,7 +17,7 @@ figures:
 
 experiments:
 	@for e in run_detection fp_crux adaptive real_step compressed multiround \
-	          curvature_attack backdoor backdoor_capacity; do \
+	          curvature_attack backdoor backdoor_capacity scale; do \
 		echo "=== $$e ==="; python -m experiments.$$e || exit 1; \
 	done
 

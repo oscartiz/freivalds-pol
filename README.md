@@ -49,6 +49,7 @@ src/freivalds_pol/
   compressor.py    DeMo-style update compression (momentum/DCT/top-k) + per-tile verifier
   trainer.py       multi-round DeMo training loop + budget-constrained adversaries
   curvature.py     Hessian-vector products + power iteration (flat/steep loss directions)
+  model.py         multi-layer/multi-head transformer + AdamW (for scaling §8/§9)
   commitments.py   SHA-256 Merkle tree over transcript leaves
   transcript.py    StepTranscript / MatMulRecord (carries claimed dtype) + commitment
   challenge.py     random challenge sampling + Fiat-Shamir (commitment-derived) probes
@@ -64,6 +65,7 @@ experiments/
   curvature_attack.py  worst-case: aim the sub-threshold bias at the flattest loss direction
   backdoor.py      targeted backdoor: can a cheat evade per-step AND loss detection at once?
   backdoor_capacity.py  does over-parameterization open a stealthy backdoor? (yes)
+  scale.py         re-run §8/§9 on a deep model + AdamW (do the findings survive?)
   figures.py       regenerate every figure in figures/
 tests/             10 pytest files (55 tests) across every module
 docs/DESIGN.md     12-section design document; REPORT.md     research writeup with figures
@@ -92,6 +94,7 @@ python -m experiments.multiround         # do sub-threshold cheats accumulate ov
 python -m experiments.curvature_attack   # worst case: bias along the flattest loss direction
 python -m experiments.backdoor           # targeted backdoor: stealth-vs-harm tradeoff
 python -m experiments.backdoor_capacity  # over-parameterization widens the stealth window
+python -m experiments.scale              # deep model + AdamW: do §8/§9 findings survive?
 ```
 
 ## Status
@@ -107,7 +110,8 @@ the DeMo-compressed update (momentum + per-tile DCT + top-k + error feedback) �
 per tile on that real gradient. A multi-round DeMo trainer then settles the hardest question
 (do never-detected sub-threshold cheats accumulate? — no, not linearly; a worst-case
 curvature-targeted adversary gains no edge; and a targeted backdoor has no stealthy-and-effective
-regime — *except* in over-parameterized models, where the stealth window reopens). 55 tests pass.
+regime at toy scale — but with **AdamW + depth the backdoor becomes loss-stealthy**, so loss
+monitoring alone fails and per-step verification is *necessary*; §8 findings hold at scale). 64 tests pass.
 
 Findings folded in:
 
@@ -127,15 +131,18 @@ Findings folded in:
   (but still sublinear) edge over random noise. (`experiments/multiround.py`, §8.)
 - **Worst-case curvature attack — no edge** — aiming the bias at the Hessian's flattest direction
   (via Hessian-vector products + power iteration), even re-tracked as it moves, gives no drift or
-  test-loss advantage over random: curvature spans ~4 orders of magnitude while harm stays
-  negligible. Flat directions are flat because the loss ignores them. (`experiments/curvature_attack.py`, §8.)
-- **Targeted backdoor — no stealthy attack** — injecting the trigger-hijack gradient at a
-  sub-threshold budget implants ~0%; getting a real backdoor (>10%) needs a budget ~10⁴× the
-  per-step floor that ALSO blows up the population loss several-fold. No stealthy-and-effective
-  regime — the attacker is loud on at least one detector. (`experiments/backdoor.py`, §9.)
+  test-loss advantage over random. Flat directions are flat because the loss ignores them.
+  (`experiments/curvature_attack.py`, §8.) **Both this and the sublinear-drift finding hold at
+  scale** (4-layer/8-head + AdamW, `experiments/scale.py`).
+- **Targeted backdoor — loss-stealthy at scale (the M1 finding)** — with the toy SGD step a
+  backdoor wrecks the loss before it implants (no stealthy regime). But with **AdamW + depth** it
+  becomes *loss-stealthy*: ~98% implanted at <1.1× test loss, so **loss monitoring misses it** —
+  overturning the earlier single-block claim. Every effective budget is still ≫ the per-step
+  Freivalds floor, so **per-step verification catches it: it is necessary, not optional**.
+  (`experiments/backdoor.py`, `experiments/scale.py`, §9 / §9b.)
 
-**Next:** scale to a multi-layer / multi-head transformer; fuse the gradient + compression checks
-over a committed accumulator chain across rounds; stress the backdoor on a capacity-rich model.
+**Next:** nanoGPT scale + a language objective; fuse the gradient + compression checks over a
+committed accumulator chain across rounds; reproduce the AdamW backdoor on a richer objective.
 
 ## Prior art
 

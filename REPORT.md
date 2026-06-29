@@ -131,31 +131,45 @@ negligible, even when the flat direction is re-tracked as it moves. Flat directi
 
 ![Curvature attack](figures/curvature.png)
 
-### 4.7 Targeted backdoor — and the capacity crack
+**Validated at scale (M1).** Both §4.5 and §4.6 were re-run on a multi-layer (4), multi-head (8)
+transformer trained with **AdamW** (`experiments/scale.py`) and both survive: drift exponent
+p≈0.21/0.28 (still ≪ 1), and the curvature attack's drift varies only 1.09× across curvature
+spanning −0.59 → +98. So the sub-threshold *accumulation* harmlessness is not an artifact of the
+toy optimizer.
+
+### 4.7 Targeted backdoor — and where it breaks at scale
 
 The one attack that could evade per-step detection *and* loss monitoring: implant a trigger
-(normal everywhere, wrong on a chosen off-distribution input). At **matched capacity there is no
-stealthy-and-effective regime** — a real backdoor needs a budget ~10⁴× the per-step floor that
-also blows the population loss up several-fold (left). But **over-parameterization erodes this**
-(right): a wide student fitting a low-rank task has spare loss-flat-but-functional directions, so
-the implant climbs with width while the loss cost grows far slower — at width 1024, budget 0.1,
-~12% of the backdoor lands for only a 1.04× loss bump.
+(normal everywhere, wrong on a chosen off-distribution input). **At matched capacity with the toy
+SGD step there is no stealthy-and-effective regime** — a real backdoor needs a budget ~10⁴× the
+per-step floor that also blows the population loss up several-fold; over-parameterization widens
+the window somewhat (a wide student takes more backdoor per unit of loss harm).
 
-![Backdoor tradeoff](figures/backdoor.png)
-![Backdoor vs capacity](figures/backdoor_capacity.png)
+![Backdoor tradeoff (single block, SGD)](figures/backdoor.png)
 
-**This is the sharpest design consequence of the project:** per-step verification is *not* a
-luxury for the large, capacity-rich models Psyche targets — it is exactly where loss monitoring
-alone is weakest, so the per-step check carries the security the loss metric cannot.
+**But with a real optimizer (AdamW) and depth, this reverses — the headline M1 finding.** On the
+4-layer/8-head model fitting a low-rank teacher, AdamW efficiently follows the combined objective
+and the backdoor becomes **loss-stealthy**: at budget 0.1, ~98% of the backdoor implants while the
+test loss moves <1.1× (so **loss monitoring does not catch it**); the capacity trend reappears at
+intermediate budget (44% vs 18% at 1e-2). This **overturns the §4.7 toy-SGD conclusion**.
+
+![Deep + AdamW: loss-stealthy backdoor, caught per-step](figures/scale_backdoor.png)
+
+Crucially, **every budget that implants anything is ≫ the per-step Freivalds floor `ρ*~1e-5`**, so
+the per-step check still catches it. The net is the *strongest* case for the scheme: in the
+realistic regime **loss monitoring is insufficient and per-step verification is necessary, not
+optional** — it carries the security the loss metric cannot, exactly for the large, capacity-rich
+models Psyche targets.
 
 ## 5. Limitations
 
-- Single transformer block, single head, numpy/CPU, modest widths and run lengths.
+- Validated up to a 4-layer / 8-head transformer with AdamW (§4.5–4.7), numpy/CPU; not yet at
+  nanoGPT scale or on a language objective.
 - DeMo is a faithful *simplification* (whole-tensor tiling, per-tile top-k); not byte-identical
   to Nous's implementation. The phase-2 zero-knowledge spot-check is designed (§ design doc) but
   not implemented.
-- The backdoor study uses one trigger/target and an MSE objective; larger models and richer
-  objectives are the natural next probes.
+- The backdoor study uses one trigger/target and an MSE objective; the alarming AdamW result
+  (§4.7) should be reproduced on a richer objective and at larger scale.
 
 ## 6. Related work
 

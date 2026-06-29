@@ -80,6 +80,9 @@ probability ≈ `(1−f)^k`; tune `k` (and Freivalds rounds) to the target ε.
 - **Multi-round dynamics** (`trainer.py`, §8): a full DeMo training loop over many rounds with
   a budget-constrained adversary, plus a curvature probe (`curvature.py`: Hessian-vector products
   + power iteration) for the worst-case curvature-targeted adversary.
+- **Scaled regime** (`model.py`, §8–§9b): a multi-layer, multi-head transformer with an AdamW
+  path (and generic flat Hessian-vector helpers in `curvature.py`) used by `experiments/scale.py`
+  to re-test the §8/§9 findings beyond the single-block toy.
 - **Next:** scale the single block to a multi-layer / multi-head transformer at nanoGPT scale
   (≈100M–1B); fuse the gradient (Freivalds) and compression (per-tile) checks into one
   `verify_step` over the committed accumulator chain across rounds.
@@ -215,9 +218,15 @@ accumulation lands where it does no functional harm.
 **Protocol rule.** Worst-case-safe design still keeps `budget < D/(lr·R·‖g‖)`: the detection
 threshold tightens as ~1/R with run length — but this is now a *conservative margin*, not a
 demonstrated necessity. An *above*-threshold cheat is caught with probability `1−(1−p)^R → 1`
-within a few rounds. Caveats on the negative result: single small block, R=200. The
-*targeted backdoor* objective — the attack that could evade the population-loss metric too — is
-taken up directly in §9 (and also finds no stealthy attack).
+within a few rounds.
+
+**Scaled validation (M1, `experiments/scale.py`).** Both §8 findings were re-measured on a
+multi-layer (4), multi-head (8) transformer trained with **AdamW** — a real optimizer, since the
+restoring-force argument depends on one. Both **survive**: the sub-threshold drift exponent is
+p≈0.21 (aligned) / 0.28 (random), still far below the naive linear p=1; and the curvature attack
+still has no edge (drift varies 1.09× across curvature spanning −0.59 → +98). So sub-threshold
+*accumulation* harmlessness is not an artifact of the toy SGD step. The *targeted backdoor* is a
+different story — see §9.
 
 ## 9. Targeted backdoor: the one attack that could evade both defenses
 
@@ -268,7 +277,28 @@ damage, precisely because they have more loss-flat-but-functional directions.
 **This is the sharpest design consequence of the whole project:** per-step verification is *not*
 a luxury for the large, capacity-rich models Psyche actually targets — it is exactly where loss
 monitoring alone is weakest, so the per-step check carries the security that the loss metric
-cannot. Remaining caveats: single block, one trigger/target, MSE objective, modest widths.
+cannot.
+
+### 9b. Scaled re-run (M1): the "no stealthy backdoor" claim is OVERTURNED with a real optimizer
+
+The matched-capacity "no stealthy-and-effective regime" above was measured with the toy SGD
+step. Re-run on the deep (4-layer, 8-head) model with **AdamW** and a low-rank teacher
+(`experiments/scale.py`), it does **not** hold — AdamW efficiently follows the combined
+objective, so the backdoor becomes **loss-stealthy**:
+
+| budget (of ‖g‖) | per-step? | implant (d_ff=64) | implant (d_ff=256) | test loss × honest |
+|---|---|---|---|---|
+| 1e-3 | caught | 1.5% | 2.8% | 1.00× |
+| 1e-2 | caught | 17.5% | 44.4% | 1.02–1.03× |
+| 1e-1 | caught | 98.1% | 98.3% | 1.02–1.09× |
+
+At budget 0.1 the backdoor is **~98% implanted while the test loss barely moves**, so **loss
+monitoring does not catch it** (overturning the §9 toy-SGD conclusion); the capacity trend
+reappears at the intermediate budget (44% vs 18% at 1e-2). Crucially, **every effective budget is
+≫ the per-step Freivalds floor `ρ*~1e-5`**, so the per-step check *does* catch it. Net: in the
+realistic regime, loss monitoring is insufficient and **per-step verification is necessary, not
+optional** — the strongest case yet for this scheme. Remaining caveats: one trigger/target, MSE
+objective, ≤256 width / 4 layers, numpy/CPU.
 
 ## 10. Prior art / positioning
 
